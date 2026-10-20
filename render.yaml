@@ -11,6 +11,12 @@ services:
         value: 3.12.7
       - key: API_KEY
         generateValue: true
+      # PIN para armar la alarma y controlar el ventilador desde el panel (cámbialo en Render)
+      - key: CONTROL_PIN
+        value: "1234"
+      # Tema de ntfy para los avisos al teléfono (cámbialo por uno difícil de adivinar)
+      - key: NTFY_TOPIC
+        value: villa-la-paz-alarma-cambiame
       - key: DATABASE_URL
         fromDatabase:
           name: domotica-db

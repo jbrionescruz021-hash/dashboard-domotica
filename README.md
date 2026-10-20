@@ -19,7 +19,8 @@ ESP32 ──HTTP POST (JSON)──▶ Flask en Render ──▶ PostgreSQL
 | `static/` | Chart.js, íconos, manifest y service worker de la app Android |
 | `requirements.txt` | Librerías de Python |
 | `render.yaml` | Configuración para crear todo en Render con un clic |
-| `esp32/esp32_envio_dashboard.ino` | Código de la ESP32 (DHT22, PIR y sensor de puerta) |
+| `esp32/prototipo_domotico.ino` | Programa completo de la placa (sensores, relé, zumbador, LED y control desde el panel) |
+| `esp32/esp32_envio_dashboard.ino` | Versión básica anterior (solo envía DHT22, PIR y puerta) |
 | `simulador.py` | Envía datos falsos para probar sin la ESP32 |
 
 ## 1. Probar en tu computadora (opcional)
@@ -58,7 +59,7 @@ Sin la variable `DATABASE_URL`, los datos se guardan en un archivo local `lectur
 
 ## 4. Configurar la ESP32
 
-En `esp32/esp32_envio_dashboard.ino` cambia:
+En `esp32/prototipo_domotico.ino` cambia:
 
 ```cpp
 const char* WIFI_SSID     = "NOMBRE_DE_TU_WIFI";
@@ -93,6 +94,19 @@ Para darle nombre y unidad a un sensor nuevo, agrégalo en `SENSORES` dentro de
 | `/api/datos` | POST | Guarda una lectura. Encabezado `X-API-Key` obligatorio |
 | `/api/ultimos` | GET | Última lectura de cada dispositivo |
 | `/api/historial?horas=6&dispositivo=casa-1` | GET | Lecturas recientes (máximo 2000) |
+| `/api/control?dispositivo=casa-1` | GET | Estado de armado y modo del ventilador |
+| `/api/control` | POST | Cambia `armado` (0/1) o `ventilador` (0 auto, 1 encendido, 2 apagado). Encabezado `X-Control-Pin` si se definió `CONTROL_PIN` |
+
+La respuesta de `/api/datos` trae `armado` y `ventilador`, y así la ESP32 recibe las órdenes del panel.
+
+## Alarma, ventilador y avisos al teléfono
+
+- El programa completo de la placa con relé, zumbador y LED está en
+  `../prototipo/esp32/prototipo_domotico.ino`, y el circuito de Wokwi en `../prototipo/wokwi/`.
+- En el panel, la sección de control permite **armar o desarmar la alarma** y elegir el modo del ventilador.
+  Si se definió `CONTROL_PIN`, el panel pide el PIN la primera vez.
+- **Avisos:** instala la app **ntfy** en el teléfono, toca **+** y suscríbete al mismo tema de la variable
+  `NTFY_TOPIC`. Cuando la alarma se dispara llega un aviso, uno por cada disparo.
 
 ## Límites del plan gratuito de Render
 
