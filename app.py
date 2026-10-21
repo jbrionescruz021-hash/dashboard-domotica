@@ -16,11 +16,14 @@ Rutas:
 
 Avisos al teléfono: si se define la variable NTFY_TOPIC, el servidor envía una
 notificación a la app ntfy cuando se dispara la alarma de un dispositivo.
+Si además se definen CALLMEBOT_PHONE y CALLMEBOT_APIKEY, envía el mismo aviso
+por WhatsApp con el servicio gratuito CallMeBot.
 """
 import json
 import os
 import sqlite3
 import threading
+import urllib.parse
 import urllib.request
 from datetime import datetime, timedelta, timezone
 
@@ -35,6 +38,8 @@ SQLITE_PATH = os.environ.get("SQLITE_PATH", "lecturas.db")
 CONTROL_PIN = os.environ.get("CONTROL_PIN", "")      # vacío = sin PIN
 NTFY_TOPIC = os.environ.get("NTFY_TOPIC", "")        # vacío = sin avisos
 NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
+CALLMEBOT_PHONE = os.environ.get("CALLMEBOT_PHONE", "")    # p. ej. +50588887777; vacío = sin WhatsApp
+CALLMEBOT_APIKEY = os.environ.get("CALLMEBOT_APIKEY", "")
 
 # Modos del ventilador (los mismos que usa la ESP32)
 VENT_AUTO, VENT_ON, VENT_OFF = 0, 1, 2
@@ -94,20 +99,31 @@ def ultima_alarma(con, dispositivo):
 
 
 def enviar_aviso(dispositivo, datos):
-    """Notificación al teléfono con ntfy (en segundo plano para no demorar a la ESP32)."""
-    if not NTFY_TOPIC:
+    """Aviso al teléfono con ntfy y WhatsApp (en segundo plano para no demorar a la ESP32)."""
+    if not NTFY_TOPIC and not (CALLMEBOT_PHONE and CALLMEBOT_APIKEY):
         return
     causa = "se abrió la puerta" if datos.get("puerta") == 1 else "se detectó movimiento"
     mensaje = f"Alarma en {dispositivo}: {causa}."
 
     def tarea():
-        try:
-            req = urllib.request.Request(
-                f"{NTFY_SERVER}/{NTFY_TOPIC}", data=mensaje.encode("utf-8"),
-                headers={"Title": "Domotica Villa La Paz", "Priority": "high", "Tags": "rotating_light"})
-            urllib.request.urlopen(req, timeout=10)
-        except Exception as e:  # el aviso no debe interrumpir el registro de la lectura
-            app.logger.warning("No se pudo enviar el aviso: %s", e)
+        if NTFY_TOPIC:
+            try:
+                req = urllib.request.Request(
+                    f"{NTFY_SERVER}/{NTFY_TOPIC}", data=mensaje.encode("utf-8"),
+                    headers={"Title": "Alarma domotica", "Priority": "high", "Tags": "rotating_light"})
+                urllib.request.urlopen(req, timeout=10)
+                app.logger.warning("Aviso enviado por ntfy al tema %s", NTFY_TOPIC)
+            except Exception as e:  # el aviso no debe interrumpir el registro de la lectura
+                app.logger.warning("No se pudo enviar el aviso por ntfy: %s", e)
+        if CALLMEBOT_PHONE and CALLMEBOT_APIKEY:
+            try:
+                consulta = urllib.parse.urlencode(
+                    {"phone": CALLMEBOT_PHONE, "text": "🚨 " + mensaje, "apikey": CALLMEBOT_APIKEY})
+                with urllib.request.urlopen(f"https://api.callmebot.com/whatsapp.php?{consulta}", timeout=15) as r:
+                    # CallMeBot responde 200 aunque falle; su texto dice si el mensaje salió
+                    app.logger.warning("Respuesta de CallMeBot: %s", r.read(300).decode("utf-8", "replace"))
+            except Exception as e:
+                app.logger.warning("No se pudo enviar el aviso por WhatsApp: %s", e)
 
     threading.Thread(target=tarea, daemon=True).start()
 
@@ -140,6 +156,7 @@ def recibir():
         )
         control = leer_control(con, dispositivo)
     if datos.get("alarma") == 1 and alarma_previa != 1:
+        app.logger.warning("Alarma disparada en %s: enviando avisos", dispositivo)
         enviar_aviso(dispositivo, datos)
     # La ESP32 lee de esta respuesta si el sistema está armado y el modo del ventilador
     return jsonify(ok=True, **control), 201
