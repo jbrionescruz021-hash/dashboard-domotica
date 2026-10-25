@@ -78,13 +78,45 @@
   table { width: 100%; border-collapse: collapse; font-size: 13px; font-variant-numeric: tabular-nums; }
   th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); }
   th { color: var(--text-secondary); font-weight: 600; }
-  .control { display: flex; flex-wrap: wrap; gap: 16px 28px; align-items: center; margin-bottom: 16px; }
-  .control .grupo { display: flex; flex-direction: column; gap: 6px; }
-  .control .lbl { color: var(--text-secondary); font-size: 13px; }
-  .btn-armar { border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); border-radius: 8px; padding: 7px 14px; font: inherit; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
-  .btn-armar[aria-pressed="true"] { border-color: var(--critical); color: var(--critical); }
-  .control .nota { color: var(--text-muted); font-size: 12px; }
-  #instalar { display: none; border: 1px solid var(--series-1); color: var(--series-1); background: none; border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  [hidden] { display: none !important; }
+
+  /* ---------- Control ---------- */
+  .ctl-head { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .ctl-head h2 { font-size: 15px; margin: 0; }
+  .candado { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; font-size: 13px; color: var(--text-secondary); }
+  .candado input { width: 110px; font: inherit; font-size: 13px; padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); letter-spacing: .15em; }
+  .candado .err { color: var(--critical); }
+  .btn { border: 1px solid var(--border); background: var(--surface-1); color: var(--text-primary); border-radius: 8px; padding: 6px 12px; font: inherit; font-size: 13px; cursor: pointer; }
+  .btn.prim { border-color: var(--series-1); background: var(--series-1); color: #fff; }
+  .btn:focus-visible, .switch input:focus-visible + .pista { outline: 2px solid var(--series-1); outline-offset: 2px; }
+  .controles { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .ctl { display: grid; gap: 10px; }
+  .ctl.alerta { border-color: var(--critical); box-shadow: 0 0 0 2px color-mix(in srgb, var(--critical) 30%, transparent); }
+  .fila { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .ctl .lbl { color: var(--text-secondary); font-size: 13px; }
+  .ctl .grande { font-size: 20px; font-weight: 600; }
+  .ctl .det { color: var(--text-muted); font-size: 12px; }
+  .switch { position: relative; flex: none; display: inline-block; }
+  .switch input { position: absolute; inset: 0; opacity: 0; margin: 0; cursor: pointer; }
+  .switch input:disabled { cursor: not-allowed; }
+  .pista { display: block; width: 56px; height: 32px; border-radius: 999px; background: var(--grid); border: 1px solid var(--border); position: relative; transition: background .2s; }
+  .pista::after { content: ""; position: absolute; top: 3px; left: 3px; width: 24px; height: 24px; border-radius: 50%; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s; }
+  .switch input:checked + .pista { background: var(--good); border-color: var(--good); }
+  #swAlarma:checked + .pista { background: var(--critical); border-color: var(--critical); }
+  .switch input:checked + .pista::after { transform: translateX(24px); }
+  .switch input:disabled + .pista { opacity: .5; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .chip { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px; border: 1px solid var(--border); color: var(--text-secondary); background: var(--surface-1); }
+  .chip.ok { color: var(--good); border-color: color-mix(in srgb, var(--good) 40%, transparent); }
+  .chip.aviso { color: var(--warn); border-color: color-mix(in srgb, var(--warn) 45%, transparent); }
+  .chip.peligro { color: #fff; background: var(--critical); border-color: var(--critical); }
+  .auto { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); cursor: pointer; }
+  .auto input { accent-color: var(--series-1); width: 16px; height: 16px; }
+
+  /* ---------- Instalar app ---------- */
+  .ayuda { margin-bottom: 16px; font-size: 14px; }
+  .ayuda ol { margin: 6px 0 0; padding-left: 20px; }
+  @media (prefers-reduced-motion: reduce) { .pista, .pista::after { transition: none; } }
   @media (max-width: 480px) { .charts { grid-template-columns: 1fr; } .tile .val { font-size: 24px; } }
 </style>
 </head>
@@ -97,9 +129,10 @@
     </div>
     <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap">
       <span class="estado"><span class="punto" id="punto"></span><span id="estadoTxt">Conectando…</span></span>
-      <button id="instalar">Instalar app</button>
+      <button class="btn prim" id="instalar" type="button" hidden>Instalar app</button>
     </div>
   </header>
+  <div class="card ayuda" id="ayudaInstalar" hidden></div>
 
   <div class="filtros">
     <div class="seg" id="rango" role="group" aria-label="Rango de tiempo">
@@ -111,20 +144,52 @@
     <select id="dispositivo" aria-label="Dispositivo" hidden></select>
   </div>
 
-  <div class="card control" id="control">
-    <div class="grupo">
-      <span class="lbl">Alarma de seguridad</span>
-      <button class="btn-armar" id="armar" aria-pressed="false"><span class="punto" id="puntoArmado"></span><span id="armarTxt">Desarmada</span></button>
+  <div class="ctl-head">
+    <h2>Control</h2>
+    <form class="candado" id="candado" autocomplete="off">
+      <span id="candadoTxt">Ingresa el PIN para usar los interruptores</span>
+      <input id="pin" type="password" inputmode="numeric" maxlength="12" placeholder="PIN" aria-label="PIN de control">
+      <button class="btn" type="submit" id="pinBtn">Desbloquear</button>
+      <span class="err" id="pinErr" role="alert"></span>
+    </form>
+  </div>
+
+  <div class="controles">
+    <div class="card ctl" id="ctlVent">
+      <div class="fila">
+        <div>
+          <div class="lbl">Ventilador</div>
+          <div class="grande" id="ventTxt">Apagado</div>
+          <div class="det">Relé · GPIO 25</div>
+        </div>
+        <label class="switch" title="Encender o apagar el ventilador">
+          <input type="checkbox" id="swVent" role="switch" aria-label="Ventilador" disabled>
+          <span class="pista"></span>
+        </label>
+      </div>
+      <div class="chips">
+        <label class="auto"><input type="checkbox" id="autoVent" disabled> Automático (enciende a 30 °C, apaga a 28 °C)</label>
+      </div>
+      <div class="chips"><span class="chip" id="ventChip">Sin datos de la placa</span></div>
     </div>
-    <div class="grupo">
-      <span class="lbl">Ventilador</span>
-      <div class="seg" id="ventilador" role="group" aria-label="Modo del ventilador">
-        <button data-v="0" aria-pressed="true">Automático</button>
-        <button data-v="1">Encendido</button>
-        <button data-v="2">Apagado</button>
+
+    <div class="card ctl" id="ctlAlarma">
+      <div class="fila">
+        <div>
+          <div class="lbl">Alarma de puerta</div>
+          <div class="grande" id="alarmaTxt">Desarmada</div>
+          <div class="det">Sensor magnético MC-38 · GPIO 26 (también vigila el PIR)</div>
+        </div>
+        <label class="switch" title="Armar o desarmar la alarma">
+          <input type="checkbox" id="swAlarma" role="switch" aria-label="Alarma de puerta" disabled>
+          <span class="pista"></span>
+        </label>
+      </div>
+      <div class="chips">
+        <span class="chip" id="puertaChip">Puerta: sin datos</span>
+        <span class="chip" id="alarmaChip" hidden></span>
       </div>
     </div>
-    <span class="nota" id="controlNota">En automático, el ventilador enciende a 30 °C y apaga a 28 °C.</span>
   </div>
 
   <div class="tiles" id="tiles"></div>
@@ -150,9 +215,10 @@ const SENSORES = {
   puerta:      { nombre: "Puerta", binario: ["Cerrada", "Abierta"], corto: ["Cerrada", "Abierta"] },
   ventilador:  { nombre: "Ventilador", binario: ["Apagado", "Encendido"], corto: ["Off", "On"] },
   alarma:      { nombre: "Alarma", binario: ["Normal", "Disparada"], corto: ["No", "Sí"] },
+  armado:      { nombre: "Sistema", binario: ["Desarmado", "Armado"], corto: ["No", "Sí"] },
   luz_sala:    { nombre: "Luz de la sala", binario: ["Apagada", "Encendida"], corto: ["Off", "On"] },
 };
-const REFRESCO_MS = 5000;
+const REFRESCO_MS = 3000;
 
 let horas = 6, dispositivo = null, graficas = {};
 const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -198,6 +264,7 @@ function pintar(hist, ultima) {
     tiles.innerHTML = `<div class="vacio" style="grid-column:1/-1">Todavía no hay lecturas. Cuando la ESP32 envíe datos a <code>/api/datos</code> aparecerán aquí.</div>`;
     return;
   }
+  ultimaLectura = ultima; pintarControl();
   const t = Date.parse(ultima.ts), seg = (Date.now() - t) / 1000;
   setEstado(seg < 60 ? "ok" : "viejo", (seg < 60 ? "En línea · " : "Última lectura · ") + fmtFecha(t));
 
@@ -287,19 +354,53 @@ document.getElementById("dispositivo").addEventListener("change", e => {
   document.getElementById("charts").innerHTML = ""; cargar();
 });
 
-// Control remoto: armar la alarma y elegir el modo del ventilador.
-// La ESP32 recibe estos valores en la respuesta de su siguiente envío.
-let control = { armado: 0, ventilador: 0 };
+// Control remoto: interruptores del ventilador y de la alarma de puerta.
+// La ESP32 consulta estas órdenes cada 3 s y las aplica.
+const $ = id => document.getElementById(id);
+let control = { armado: 0, ventilador: 0, pin: false };
+let ultimaLectura = null, enviando = false;
 const leerPin = () => { try { return localStorage.getItem("pinControl") || ""; } catch (e) { return ""; } };
-const guardarPin = v => { try { localStorage.setItem("pinControl", v); } catch (e) {} };
+const guardarPin = v => { try { v ? localStorage.setItem("pinControl", v) : localStorage.removeItem("pinControl"); } catch (e) {} };
+let pinActual = leerPin();
+
+function chip(el, txt, tipo) { el.textContent = txt; el.className = "chip" + (tipo ? " " + tipo : ""); el.hidden = false; }
 
 function pintarControl() {
-  const armado = Number(control.armado) === 1;
-  const b = document.getElementById("armar");
-  b.setAttribute("aria-pressed", armado);
-  document.getElementById("armarTxt").textContent = armado ? "Armada · tocar para desarmar" : "Desarmada · tocar para armar";
-  document.getElementById("puntoArmado").className = "punto " + (armado ? "error" : "ok");
-  document.querySelectorAll("#ventilador button").forEach(x => x.setAttribute("aria-pressed", Number(x.dataset.v) === Number(control.ventilador)));
+  const d = ultimaLectura ? ultimaLectura.datos : {};
+  const reciente = ultimaLectura && (Date.now() - Date.parse(ultimaLectura.ts)) / 1000 < 60;
+  const desbloqueado = !control.pin || Boolean(pinActual);
+  const modo = Number(control.ventilador), armado = Number(control.armado) === 1;
+  const ventReal = typeof d.ventilador === "number" ? d.ventilador === 1 : null;
+
+  // Ventilador
+  if (!enviando) {
+    $("swVent").checked = modo === 1 || (modo === 0 && ventReal === true);
+    $("autoVent").checked = modo === 0;
+    $("swAlarma").checked = armado;
+  }
+  $("swVent").disabled = $("autoVent").disabled = $("swAlarma").disabled = !desbloqueado || enviando;
+  $("ventTxt").textContent = (ventReal ?? modo === 1) ? "Encendido" : "Apagado";
+  if (!reciente) chip($("ventChip"), "Placa sin conexión: se aplicará al reconectar", "aviso");
+  else if (modo === 0) chip($("ventChip"), ventReal ? "Automático · girando" : "Automático · detenido", "ok");
+  else if (ventReal === (modo === 1)) chip($("ventChip"), modo === 1 ? "Confirmado: girando" : "Confirmado: detenido", "ok");
+  else chip($("ventChip"), "Enviando a la placa…", "aviso");
+
+  // Alarma de puerta
+  $("alarmaTxt").textContent = armado ? "Armada" : "Desarmada";
+  if (typeof d.puerta !== "number") chip($("puertaChip"), "Puerta: sin datos", "");
+  else chip($("puertaChip"), d.puerta === 1 ? "Puerta abierta" : "Puerta cerrada", d.puerta === 1 ? "aviso" : "ok");
+  const sonando = reciente && d.alarma === 1;
+  $("ctlAlarma").classList.toggle("alerta", Boolean(sonando));
+  if (sonando) chip($("alarmaChip"), "¡Alarma sonando! Desarma para silenciarla", "peligro");
+  else if (reciente && typeof d.armado === "number" && (d.armado === 1) !== armado) chip($("alarmaChip"), "Enviando a la placa…", "aviso");
+  else if (reciente && armado) chip($("alarmaChip"), "Vigilando puerta y movimiento", "ok");
+  else $("alarmaChip").hidden = true;
+
+  // Candado del PIN
+  $("candado").hidden = !control.pin;
+  $("pin").hidden = desbloqueado;
+  $("pinBtn").textContent = desbloqueado ? "Bloquear" : "Desbloquear";
+  $("candadoTxt").textContent = desbloqueado ? "Interruptores desbloqueados en este dispositivo" : "Ingresa el PIN para usar los interruptores";
 }
 
 async function cargarControl() {
@@ -310,42 +411,63 @@ async function cargarControl() {
   } catch (e) {}
 }
 
-async function enviarControl(cambio, reintento) {
-  const nota = document.getElementById("controlNota");
-  const r = await fetch("/api/control", {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Control-Pin": leerPin() },
-    body: JSON.stringify({ dispositivo: dispositivo || "casa-1", ...cambio }),
-  });
-  if (r.status === 401 && !reintento) {
-    const pin = prompt("PIN de control");
-    if (pin === null) return;
-    guardarPin(pin);
-    return enviarControl(cambio, true);
+async function enviarControl(cambio) {
+  enviando = true; pintarControl();
+  try {
+    const r = await fetch("/api/control", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Control-Pin": pinActual },
+      body: JSON.stringify({ dispositivo: dispositivo || "casa-1", ...cambio }),
+    });
+    if (r.status === 401) { pinActual = ""; guardarPin(""); $("pinErr").textContent = "El PIN cambió. Vuelve a ingresarlo."; }
+    else if (!r.ok) $("pinErr").textContent = "No se pudo aplicar el cambio. Intenta de nuevo.";
+    else { const res = await r.json(); control = { ...control, ...res }; $("pinErr").textContent = ""; }
+  } catch (e) {
+    $("pinErr").textContent = "Sin conexión con el servidor.";
   }
-  if (!r.ok) { nota.textContent = "No se pudo aplicar el cambio (PIN incorrecto o sin conexión)."; return; }
-  control = await r.json(); pintarControl();
-  nota.textContent = "Cambio guardado. La ESP32 lo aplica en su siguiente envío (máximo 10 s).";
+  enviando = false; pintarControl();
 }
 
-document.getElementById("armar").addEventListener("click", () => enviarControl({ armado: Number(control.armado) === 1 ? 0 : 1 }));
-document.getElementById("ventilador").addEventListener("click", e => {
-  const b = e.target.closest("button"); if (b) enviarControl({ ventilador: Number(b.dataset.v) });
+$("swVent").addEventListener("change", e => enviarControl({ ventilador: e.target.checked ? 1 : 2 }));
+$("autoVent").addEventListener("change", e => enviarControl({ ventilador: e.target.checked ? 0 : ($("swVent").checked ? 1 : 2) }));
+$("swAlarma").addEventListener("change", e => enviarControl({ armado: e.target.checked ? 1 : 0 }));
+
+$("candado").addEventListener("submit", async e => {
+  e.preventDefault();
+  $("pinErr").textContent = "";
+  if (pinActual) { pinActual = ""; guardarPin(""); pintarControl(); return; }
+  const v = $("pin").value.trim();
+  if (!v) { $("pinErr").textContent = "Escribe el PIN."; return; }
+  try {
+    const r = await fetch("/api/control/check", { method: "POST", headers: { "X-Control-Pin": v } });
+    if (r.ok) { pinActual = v; guardarPin(v); $("pin").value = ""; }
+    else $("pinErr").textContent = "PIN incorrecto.";
+  } catch (err) { $("pinErr").textContent = "Sin conexión con el servidor."; }
+  pintarControl();
+});
+$("pin").addEventListener("input", () => { $("pinErr").textContent = ""; });
+
+// Instalación como app (Android, iPhone y computadora)
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});
+let avisoInstalar = null;
+const yaInstalada = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+const esIOS = /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); avisoInstalar = e; $("instalar").hidden = false; });
+window.addEventListener("appinstalled", () => { avisoInstalar = null; $("instalar").hidden = true; $("ayudaInstalar").hidden = true; });
+if (!yaInstalada()) setTimeout(() => { $("instalar").hidden = false; }, esIOS ? 0 : 3000);
+$("instalar").addEventListener("click", async () => {
+  if (avisoInstalar) {
+    avisoInstalar.prompt(); await avisoInstalar.userChoice.catch(() => {});
+    avisoInstalar = null; $("instalar").hidden = true; return;
+  }
+  const a = $("ayudaInstalar");
+  a.innerHTML = esIOS
+    ? "<b>Instalar en iPhone o iPad</b><ol><li>Abre esta página en <b>Safari</b>.</li><li>Toca <b>Compartir</b> (cuadro con flecha hacia arriba).</li><li>Elige <b>Agregar a pantalla de inicio</b> y toca <b>Agregar</b>.</li></ol>"
+    : "<b>Instalar la app</b><ol><li>En Android, abre el menú <b>⋮</b> de Chrome y elige <b>Instalar app</b> o <b>Agregar a pantalla principal</b>.</li><li>En computadora, usa el ícono de instalar en la barra de direcciones de Chrome o Edge.</li></ol>";
+  a.hidden = !a.hidden;
 });
 
-// Instalación como app en Android (PWA)
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js");
-let avisoInstalar;
-window.addEventListener("beforeinstallprompt", e => {
-  e.preventDefault(); avisoInstalar = e;
-  document.getElementById("instalar").style.display = "inline-block";
-});
-document.getElementById("instalar").addEventListener("click", async () => {
-  if (!avisoInstalar) return;
-  avisoInstalar.prompt(); await avisoInstalar.userChoice;
-  avisoInstalar = null; document.getElementById("instalar").style.display = "none";
-});
-
+pintarControl();
 cargar().then(cargarControl);
 setInterval(() => { cargar(); cargarControl(); }, REFRESCO_MS);
 </script>

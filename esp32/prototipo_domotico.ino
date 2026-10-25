@@ -23,6 +23,8 @@
     - Envío: una lectura cada 10 s, o al instante si cambia la puerta,
       el movimiento o la alarma. La respuesta del servidor trae el estado
       de "armado" y el modo del ventilador.
+    - Órdenes del panel: cada 3 s la placa consulta /api/control, así los
+      interruptores del dashboard se aplican en pocos segundos.
 
   Librería necesaria (Gestor de librerías del IDE de Arduino):
     - "DHT sensor library" de Adafruit (instala también "Adafruit Unified Sensor")
@@ -41,6 +43,7 @@ const char* DISPOSITIVO   = "casa-1";
 
 const unsigned long INTERVALO_MS = 10000;  // envío periódico
 const unsigned long MINIMO_MS    = 2000;   // separación mínima entre envíos por evento
+const unsigned long CONTROL_MS   = 3000;   // consulta de órdenes del panel
 const float T_ENCENDER = 30.0;             // °C
 const float T_APAGAR   = 28.0;             // °C
 
@@ -68,7 +71,9 @@ float temperatura = NAN, humedad = NAN;
 int   movimiento = 0, puerta = 0, luz = 0;
 int   movAnterior = -1, puertaAnterior = -1;
 bool  alarmaAnterior = false;
-unsigned long ultimoEnvio = 0, ultimaLecturaDHT = 0;
+unsigned long ultimoEnvio = 0, ultimaLecturaDHT = 0, ultimoControl = 0;
+bool  armadoAnterior = false;
+int   modoAnterior = VENT_AUTO;
 
 void conectarWiFi() {
   if (WiFi.status() == WL_CONNECTED) return;
@@ -132,9 +137,9 @@ void enviar() {
   snprintf(json, sizeof(json),
            "{\"dispositivo\":\"%s\",\"temperatura\":%.1f,\"humedad\":%.0f,"
            "\"movimiento\":%d,\"puerta\":%d,\"luz\":%d,"
-           "\"ventilador\":%d,\"alarma\":%d}",
+           "\"ventilador\":%d,\"alarma\":%d,\"armado\":%d}",
            DISPOSITIVO, temperatura, humedad, movimiento, puerta, luz,
-           ventilador ? 1 : 0, alarma ? 1 : 0);
+           ventilador ? 1 : 0, alarma ? 1 : 0, armado ? 1 : 0);
 
   WiFiClientSecure cliente;
   cliente.setInsecure();          // HTTPS sin verificar el certificado (suficiente para el proyecto)
@@ -154,6 +159,27 @@ void enviar() {
   http.end();
 }
 
+// Consulta rápida de las órdenes del panel (no guarda nada en la base de datos)
+void consultarControl() {
+  if (WiFi.status() != WL_CONNECTED) return;
+  String url = String(SERVIDOR);
+  url.replace("/api/datos", "/api/control?dispositivo=");
+  url += DISPOSITIVO;
+
+  WiFiClientSecure cliente;
+  cliente.setInsecure();
+  HTTPClient http;
+  http.setTimeout(8000);
+  http.begin(cliente, url);
+  int codigo = http.GET();
+  if (codigo == 200) {
+    String resp = http.getString();             // {"armado":1,"ventilador":0,...}
+    armado = leerEntero(resp, "armado", armado) == 1;
+    modoVentilador = leerEntero(resp, "ventilador", modoVentilador);
+  }
+  http.end();
+}
+
 void setup() {
   Serial.begin(115200);
   pinMode(PIN_PIR, INPUT);
@@ -170,13 +196,23 @@ void loop() {
   leerSensores();
   controlarActuadores();
 
-  bool evento = (movimiento != movAnterior) || (puerta != puertaAnterior) || (alarma != alarmaAnterior);
+  if (millis() - ultimoControl >= CONTROL_MS) {
+    ultimoControl = millis();
+    consultarControl();
+    controlarActuadores();                      // aplica la orden al instante
+  }
+
+  // Si cambió una orden del panel, se informa enseguida el nuevo estado
+  bool cambioOrden = (armado != armadoAnterior) || (modoVentilador != modoAnterior);
+  bool evento = cambioOrden || (movimiento != movAnterior) || (puerta != puertaAnterior) || (alarma != alarmaAnterior);
   unsigned long transcurrido = millis() - ultimoEnvio;
   if (transcurrido >= INTERVALO_MS || (evento && transcurrido >= MINIMO_MS)) {
     ultimoEnvio = millis();
     movAnterior = movimiento;
     puertaAnterior = puerta;
     alarmaAnterior = alarma;
+    armadoAnterior = armado;
+    modoAnterior = modoVentilador;
     enviar();
   }
   delay(20);

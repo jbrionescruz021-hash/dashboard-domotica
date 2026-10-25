@@ -44,6 +44,7 @@ while True:
         "luz": max(0, min(100, round(50 + 45 * math.sin(t / 1800)))),
         "ventilador": ventilador,
         "alarma": alarma,
+        "armado": armado,
     }
     req = urllib.request.Request(url, data=json.dumps(lectura).encode(), method="POST",
                                  headers={"Content-Type": "application/json", "X-API-Key": clave})
