@@ -10,15 +10,14 @@ Rutas:
                        La respuesta trae el estado de la alarma y del ventilador.
   GET  /api/ultimos    Última lectura de cada dispositivo
   GET  /api/historial  Lecturas recientes (parámetros: horas, dispositivo)
-  GET  /api/control    Estado de armado y modo del ventilador de un dispositivo
-  POST /api/control    Cambia el armado o el modo del ventilador (PIN opcional)
-  POST /api/control/check  Verifica el PIN del panel sin cambiar nada
+  GET  /api/control    Órdenes del panel para un dispositivo: armado, ventilador,
+                       alarma_modo (0 auto, 1 encendida, 2 apagada) y led_azul (0/1)
+  POST /api/control    Cambia cualquiera de esos valores (PIN opcional)
   GET  /               Dashboard
 
 Avisos al teléfono: si se define la variable NTFY_TOPIC, el servidor envía una
 notificación a la app ntfy cuando se dispara la alarma de un dispositivo.
 """
-import hmac
 import json
 import os
 import sqlite3
@@ -40,6 +39,12 @@ NTFY_SERVER = os.environ.get("NTFY_SERVER", "https://ntfy.sh")
 
 # Modos del ventilador (los mismos que usa la ESP32)
 VENT_AUTO, VENT_ON, VENT_OFF = 0, 1, 2
+# Modos de la alarma: automática (según sensores y armado), forzada encendida o forzada apagada
+ALARMA_AUTO, ALARMA_ON, ALARMA_OFF = 0, 1, 2
+
+# Órdenes que el panel le manda a la ESP32 y su valor inicial
+CAMPOS_CONTROL = ("armado", "ventilador", "alarma_modo", "led_azul")
+CONTROL_INICIAL = {"armado": 0, "ventilador": VENT_AUTO, "alarma_modo": ALARMA_AUTO, "led_azul": 0}
 
 
 # ---------------------------------------------------------------- base de datos
@@ -70,8 +75,20 @@ def crear_tabla():
             CREATE TABLE IF NOT EXISTS control (
                 dispositivo TEXT PRIMARY KEY,
                 armado INTEGER NOT NULL DEFAULT 0,
-                ventilador INTEGER NOT NULL DEFAULT 0
+                ventilador INTEGER NOT NULL DEFAULT 0,
+                alarma_modo INTEGER NOT NULL DEFAULT 0,
+                led_azul INTEGER NOT NULL DEFAULT 0
             )""")
+        # Bases creadas con la versión anterior: agregar las columnas nuevas
+        nuevas = {"alarma_modo": "INTEGER NOT NULL DEFAULT 0", "led_azul": "INTEGER NOT NULL DEFAULT 0"}
+        if USA_POSTGRES:
+            for col, tipo in nuevas.items():
+                con.execute(f"ALTER TABLE control ADD COLUMN IF NOT EXISTS {col} {tipo}")
+        else:
+            existentes = {f[1] for f in con.execute("PRAGMA table_info(control)").fetchall()}
+            for col, tipo in nuevas.items():
+                if col not in existentes:
+                    con.execute(f"ALTER TABLE control ADD COLUMN {col} {tipo}")
 
 
 crear_tabla()
@@ -83,9 +100,9 @@ def ahora():
 
 def leer_control(con, dispositivo):
     fila = con.execute(
-        f"SELECT armado, ventilador FROM control WHERE dispositivo = {ph()}", (dispositivo,)
+        f"SELECT {', '.join(CAMPOS_CONTROL)} FROM control WHERE dispositivo = {ph()}", (dispositivo,)
     ).fetchone()
-    return {"armado": fila[0], "ventilador": fila[1]} if fila else {"armado": 0, "ventilador": VENT_AUTO}
+    return dict(zip(CAMPOS_CONTROL, fila)) if fila else dict(CONTROL_INICIAL)
 
 
 def ultima_alarma(con, dispositivo):
@@ -141,9 +158,10 @@ def recibir():
             (ahora(), dispositivo, json.dumps(datos)),
         )
         control = leer_control(con, dispositivo)
-    if datos.get("alarma") == 1 and alarma_previa != 1:
+    # Si la alarma la encendió el usuario desde el panel, no hace falta avisarle al teléfono
+    if datos.get("alarma") == 1 and alarma_previa != 1 and control["alarma_modo"] != ALARMA_ON:
         enviar_aviso(dispositivo, datos)
-    # La ESP32 lee de esta respuesta si el sistema está armado y el modo del ventilador
+    # La ESP32 lee de esta respuesta las órdenes del panel (armado, ventilador, alarma y LED azul)
     return jsonify(ok=True, **control), 201
 
 
@@ -155,23 +173,9 @@ def ver_control():
     return jsonify(dispositivo=dispositivo, pin=bool(CONTROL_PIN), **control)
 
 
-def pin_valido():
-    """Sin CONTROL_PIN no se pide PIN; con él, se compara en tiempo constante."""
-    if not CONTROL_PIN:
-        return True
-    return hmac.compare_digest(request.headers.get("X-Control-Pin", ""), CONTROL_PIN)
-
-
-@app.post("/api/control/check")
-def verificar_pin():
-    if not pin_valido():
-        return jsonify(error="PIN incorrecto"), 401
-    return jsonify(ok=True)
-
-
 @app.post("/api/control")
 def cambiar_control():
-    if not pin_valido():
+    if CONTROL_PIN and request.headers.get("X-Control-Pin") != CONTROL_PIN:
         return jsonify(error="PIN incorrecto"), 401
     cuerpo = request.get_json(silent=True) or {}
     dispositivo = str(cuerpo.get("dispositivo", "casa-1"))[:40]
@@ -181,11 +185,16 @@ def cambiar_control():
             control["armado"] = int(cuerpo["armado"])
         if cuerpo.get("ventilador") in (VENT_AUTO, VENT_ON, VENT_OFF):
             control["ventilador"] = int(cuerpo["ventilador"])
+        if cuerpo.get("alarma_modo") in (ALARMA_AUTO, ALARMA_ON, ALARMA_OFF):
+            control["alarma_modo"] = int(cuerpo["alarma_modo"])
+        if cuerpo.get("led_azul") in (0, 1, True, False):
+            control["led_azul"] = int(cuerpo["led_azul"])
+        marcas = ", ".join([ph()] * (len(CAMPOS_CONTROL) + 1))
+        cambios = ", ".join(f"{c} = excluded.{c}" for c in CAMPOS_CONTROL)
         con.execute(
-            f"""INSERT INTO control (dispositivo, armado, ventilador) VALUES ({ph()}, {ph()}, {ph()})
-                ON CONFLICT (dispositivo) DO UPDATE SET armado = excluded.armado,
-                ventilador = excluded.ventilador""",
-            (dispositivo, control["armado"], control["ventilador"]),
+            f"""INSERT INTO control (dispositivo, {', '.join(CAMPOS_CONTROL)}) VALUES ({marcas})
+                ON CONFLICT (dispositivo) DO UPDATE SET {cambios}""",
+            (dispositivo, *[control[c] for c in CAMPOS_CONTROL]),
         )
     return jsonify(ok=True, dispositivo=dispositivo, **control)
 

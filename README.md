@@ -81,15 +81,11 @@ por cada uno. Ejemplo:
 Para darle nombre y unidad a un sensor nuevo, agrégalo en `SENSORES` dentro de
 `templates/index.html` (los sensores de encendido/apagado llevan `binario`).
 
-## 5. Instalar la app
+## 5. Instalar la app en Android
 
-El botón **Instalar app** aparece arriba a la derecha del dashboard.
-
-- **Android (Chrome):** toca **Instalar app** y confirma, o menú ⋮ → **Instalar app**.
-- **iPhone (Safari):** toca **Instalar app** para ver los pasos: **Compartir → Agregar a pantalla de inicio**.
-- **Computadora (Chrome o Edge):** ícono de instalar en la barra de direcciones.
-
-Queda un ícono "Domótica" que abre el dashboard en pantalla completa.
+1. Abre tu dirección de Render en **Chrome** desde el celular.
+2. Toca el botón **Instalar app** o el menú ⋮ → **Agregar a la pantalla principal**.
+3. Queda un ícono "Domótica" que abre el dashboard en pantalla completa.
 
 ## API
 
@@ -98,25 +94,20 @@ Queda un ícono "Domótica" que abre el dashboard en pantalla completa.
 | `/api/datos` | POST | Guarda una lectura. Encabezado `X-API-Key` obligatorio |
 | `/api/ultimos` | GET | Última lectura de cada dispositivo |
 | `/api/historial?horas=6&dispositivo=casa-1` | GET | Lecturas recientes (máximo 2000) |
-| `/api/control?dispositivo=casa-1` | GET | Estado de armado y modo del ventilador |
-| `/api/control` | POST | Cambia `armado` (0/1) o `ventilador` (0 auto, 1 encendido, 2 apagado). Encabezado `X-Control-Pin` si se definió `CONTROL_PIN` |
-| `/api/control/check` | POST | Verifica el PIN del panel sin cambiar nada (encabezado `X-Control-Pin`) |
+| `/api/control?dispositivo=casa-1` | GET | Órdenes del panel: `armado`, `ventilador`, `alarma_modo` y `led_azul` |
+| `/api/control` | POST | Cambia `armado` (0/1), `ventilador` (0 auto, 1 encendido, 2 apagado), `alarma_modo` (0 automática, 1 encendida, 2 apagada) o `led_azul` (0/1). Encabezado `X-Control-Pin` si se definió `CONTROL_PIN` |
 
-La ESP32 consulta `/api/control` cada 3 segundos, y la respuesta de `/api/datos` también trae `armado` y `ventilador`.
-Así las órdenes del panel se aplican en unos 3 segundos.
+La respuesta de `/api/datos` trae las mismas órdenes, y la ESP32 además consulta `/api/control` cada 3 segundos, así los switches del panel responden casi al instante.
 
 ## Alarma, ventilador y avisos al teléfono
 
 - El programa completo de la placa con relé, zumbador y LED está en
   `../prototipo/esp32/prototipo_domotico.ino`, y el circuito de Wokwi en `../prototipo/wokwi/`.
-- En el panel, la sección **Control** tiene dos interruptores:
-  - **Ventilador:** encendido o apagado manual. La casilla **Automático** lo devuelve al control por
-    temperatura (enciende a 30 °C y apaga a 28 °C). Debajo se ve si la placa ya confirmó la orden.
-  - **Alarma de puerta:** arma o desarma la vigilancia del sensor magnético MC-38 (y del PIR). El panel
-    muestra siempre si la puerta está abierta o cerrada, y la tarjeta se marca en rojo si la alarma suena.
-    Desarmarla silencia el zumbador.
-- Si se definió `CONTROL_PIN`, el panel pide el PIN una vez (en la misma página, junto a los interruptores)
-  y lo recuerda en ese dispositivo. **Cambia el PIN `1234` de `render.yaml` por uno propio en Render.**
+- En el panel, la sección de control permite **armar o desarmar el sistema**, elegir el modo de la **alarma**
+  (automática, encendida o apagada), **encender o apagar el LED azul** con un switch y elegir el modo del ventilador.
+  El mismo panel funciona en el navegador y en la app instalada.
+- **LED azul:** conéctalo con una resistencia de 100-220 Ω entre **GPIO 14** y GND (patita larga hacia el GPIO).
+  Si se definió `CONTROL_PIN`, el panel pide el PIN la primera vez.
 - **Avisos:** instala la app **ntfy** en el teléfono, toca **+** y suscríbete al mismo tema de la variable
   `NTFY_TOPIC`. Cuando la alarma se dispara llega un aviso, uno por cada disparo.
 
