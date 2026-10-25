@@ -16,7 +16,7 @@ import urllib.request
 url = (sys.argv[1] if len(sys.argv) > 1 else "http://localhost:5000").rstrip("/") + "/api/datos"
 clave = sys.argv[2] if len(sys.argv) > 2 else "cambia-esta-clave"
 puerta = 0
-armado, modo_ventilador, modo_alarma, led_azul = 0, 0, 0, 0   # los envía el servidor en cada respuesta
+armado, modo_ventilador, modo_alarma = 0, 0, 0   # los envía el servidor en cada respuesta
 ventilador, alarma = 0, 0
 
 while True:
@@ -49,7 +49,6 @@ while True:
         "luz": max(0, min(100, round(50 + 45 * math.sin(t / 1800)))),
         "ventilador": ventilador,
         "alarma": alarma,
-        "led_azul": led_azul,
     }
     req = urllib.request.Request(url, data=json.dumps(lectura).encode(), method="POST",
                                  headers={"Content-Type": "application/json", "X-API-Key": clave})
@@ -57,9 +56,9 @@ while True:
         with urllib.request.urlopen(req, timeout=20) as r:
             resp = json.loads(r.read())
             armado, modo_ventilador = resp.get("armado", 0), resp.get("ventilador", 0)
-            modo_alarma, led_azul = resp.get("alarma_modo", 0), resp.get("led_azul", 0)
+            modo_alarma = resp.get("alarma_modo", 0)
             print(r.status, lectura, "| armado:", armado, "ventilador:", modo_ventilador,
-                  "alarma:", modo_alarma, "led azul:", led_azul)
+                  "alarma:", modo_alarma)
     except Exception as e:
         print("Error:", e)
     time.sleep(5)

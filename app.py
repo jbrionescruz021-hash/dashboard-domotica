@@ -10,8 +10,8 @@ Rutas:
                        La respuesta trae el estado de la alarma y del ventilador.
   GET  /api/ultimos    Última lectura de cada dispositivo
   GET  /api/historial  Lecturas recientes (parámetros: horas, dispositivo)
-  GET  /api/control    Órdenes del panel para un dispositivo: armado, ventilador,
-                       alarma_modo (0 auto, 1 encendida, 2 apagada) y led_azul (0/1)
+  GET  /api/control    Órdenes del panel para un dispositivo: armado, ventilador y
+                       alarma_modo (0 auto, 1 encendida, 2 apagada)
   POST /api/control    Cambia cualquiera de esos valores (PIN opcional)
   GET  /               Dashboard
 
@@ -43,8 +43,8 @@ VENT_AUTO, VENT_ON, VENT_OFF = 0, 1, 2
 ALARMA_AUTO, ALARMA_ON, ALARMA_OFF = 0, 1, 2
 
 # Órdenes que el panel le manda a la ESP32 y su valor inicial
-CAMPOS_CONTROL = ("armado", "ventilador", "alarma_modo", "led_azul")
-CONTROL_INICIAL = {"armado": 0, "ventilador": VENT_AUTO, "alarma_modo": ALARMA_AUTO, "led_azul": 0}
+CAMPOS_CONTROL = ("armado", "ventilador", "alarma_modo")
+CONTROL_INICIAL = {"armado": 0, "ventilador": VENT_AUTO, "alarma_modo": ALARMA_AUTO}
 
 
 # ---------------------------------------------------------------- base de datos
@@ -76,11 +76,10 @@ def crear_tabla():
                 dispositivo TEXT PRIMARY KEY,
                 armado INTEGER NOT NULL DEFAULT 0,
                 ventilador INTEGER NOT NULL DEFAULT 0,
-                alarma_modo INTEGER NOT NULL DEFAULT 0,
-                led_azul INTEGER NOT NULL DEFAULT 0
+                alarma_modo INTEGER NOT NULL DEFAULT 0
             )""")
         # Bases creadas con la versión anterior: agregar las columnas nuevas
-        nuevas = {"alarma_modo": "INTEGER NOT NULL DEFAULT 0", "led_azul": "INTEGER NOT NULL DEFAULT 0"}
+        nuevas = {"alarma_modo": "INTEGER NOT NULL DEFAULT 0"}
         if USA_POSTGRES:
             for col, tipo in nuevas.items():
                 con.execute(f"ALTER TABLE control ADD COLUMN IF NOT EXISTS {col} {tipo}")
@@ -161,7 +160,7 @@ def recibir():
     # Si la alarma la encendió el usuario desde el panel, no hace falta avisarle al teléfono
     if datos.get("alarma") == 1 and alarma_previa != 1 and control["alarma_modo"] != ALARMA_ON:
         enviar_aviso(dispositivo, datos)
-    # La ESP32 lee de esta respuesta las órdenes del panel (armado, ventilador, alarma y LED azul)
+    # La ESP32 lee de esta respuesta las órdenes del panel (armado, ventilador y alarma)
     return jsonify(ok=True, **control), 201
 
 
@@ -187,8 +186,6 @@ def cambiar_control():
             control["ventilador"] = int(cuerpo["ventilador"])
         if cuerpo.get("alarma_modo") in (ALARMA_AUTO, ALARMA_ON, ALARMA_OFF):
             control["alarma_modo"] = int(cuerpo["alarma_modo"])
-        if cuerpo.get("led_azul") in (0, 1, True, False):
-            control["led_azul"] = int(cuerpo["led_azul"])
         marcas = ", ".join([ph()] * (len(CAMPOS_CONTROL) + 1))
         cambios = ", ".join(f"{c} = excluded.{c}" for c in CAMPOS_CONTROL)
         con.execute(

@@ -11,7 +11,6 @@
     - Módulo de relé (ventilador)            -> GPIO 25
     - Zumbador (buzzer) de alarma            -> GPIO 33
     - LED rojo de alarma (con 220 Ω)         -> GPIO 32
-    - LED azul (con 100-220 Ω a GND)         -> GPIO 14 (se enciende/apaga desde el panel)
 
   Funcionamiento:
     - Ventilador: en modo automático se enciende a 30 °C o más y se apaga
@@ -22,11 +21,10 @@
       rojo, y la lectura se envía de inmediato para que el servidor mande el
       aviso al teléfono; se apaga al desarmar. ENCENDIDA: suena sin importar
       los sensores. APAGADA: queda silenciada aunque los sensores se activen.
-    - LED azul: se enciende o apaga con el switch del panel.
     - Envío: una lectura cada 10 s, o al instante si cambia la puerta,
       el movimiento o la alarma. Además, cada 3 s la placa consulta las
-      órdenes del panel (armado, ventilador, alarma y LED azul), así los
-      switches responden en unos 3 segundos.
+      órdenes del panel (armado, ventilador y alarma), así los switches
+      responden en unos 3 segundos.
 
   Librería necesaria (Gestor de librerías del IDE de Arduino):
     - "DHT sensor library" de Adafruit (instala también "Adafruit Unified Sensor")
@@ -56,7 +54,6 @@ const float T_APAGAR   = 28.0;             // °C
 #define PIN_RELE      25
 #define PIN_BUZZER    33
 #define PIN_LED       32
-#define PIN_LED_AZUL  14
 
 // Modos del ventilador que envía el servidor
 #define VENT_AUTO     0
@@ -74,7 +71,6 @@ DHT dht(PIN_DHT, DHT11);
 bool  armado = false;          // estado de la alarma (lo decide la app)
 int   modoVentilador = VENT_AUTO;
 int   modoAlarma = ALARMA_AUTO;
-bool  ledAzul = false;         // LED azul encendido desde el panel
 bool  alarma = false;          // alarma disparada
 bool  ventilador = false;      // estado del relé
 float temperatura = NAN, humedad = NAN;
@@ -125,9 +121,6 @@ void controlarActuadores() {
   }
   digitalWrite(PIN_RELE, ventilador ? HIGH : LOW);
 
-  // LED azul: lo manda el panel
-  digitalWrite(PIN_LED_AZUL, ledAzul ? HIGH : LOW);
-
   // Alarma: automática (armado + sensores), encendida o apagada desde el panel
   static int modoAnterior = ALARMA_AUTO;
   if (modoAlarma == ALARMA_ON)       alarma = true;
@@ -148,11 +141,10 @@ void controlarActuadores() {
 }
 
 // Lee de la respuesta del servidor las órdenes del panel
-void aplicarControl(const String& resp) {            // {"ok":true,"armado":1,"ventilador":0,"alarma_modo":0,"led_azul":1}
+void aplicarControl(const String& resp) {            // {"ok":true,"armado":1,"ventilador":0,"alarma_modo":0}
   armado         = leerEntero(resp, "armado", armado) == 1;
   modoVentilador = leerEntero(resp, "ventilador", modoVentilador);
   modoAlarma     = leerEntero(resp, "alarma_modo", modoAlarma);
-  ledAzul        = leerEntero(resp, "led_azul", ledAzul ? 1 : 0) == 1;
 }
 
 // Consulta ligera de las órdenes del panel (sin enviar lecturas)
@@ -180,9 +172,9 @@ void enviar() {
   snprintf(json, sizeof(json),
            "{\"dispositivo\":\"%s\",\"temperatura\":%.1f,\"humedad\":%.0f,"
            "\"movimiento\":%d,\"puerta\":%d,\"luz\":%d,"
-           "\"ventilador\":%d,\"alarma\":%d,\"led_azul\":%d}",
+           "\"ventilador\":%d,\"alarma\":%d}",
            DISPOSITIVO, temperatura, humedad, movimiento, puerta, luz,
-           ventilador ? 1 : 0, alarma ? 1 : 0, ledAzul ? 1 : 0);
+           ventilador ? 1 : 0, alarma ? 1 : 0);
 
   WiFiClientSecure cliente;
   cliente.setInsecure();          // HTTPS sin verificar el certificado (suficiente para el proyecto)
@@ -193,8 +185,8 @@ void enviar() {
   http.addHeader("X-API-Key", API_KEY);
   int codigo = http.POST(json);
   if (codigo == 201) aplicarControl(http.getString());
-  Serial.printf("Enviado %s -> respuesta %d (armado=%d, ventilador=%d, alarma=%d, led azul=%d)\n",
-                json, codigo, armado, modoVentilador, modoAlarma, ledAzul);
+  Serial.printf("Enviado %s -> respuesta %d (armado=%d, ventilador=%d, alarma=%d)\n",
+                json, codigo, armado, modoVentilador, modoAlarma);
   http.end();
   ultimaConsulta = millis();
 }
@@ -205,7 +197,6 @@ void setup() {
   pinMode(PIN_PUERTA, INPUT_PULLUP);
   pinMode(PIN_RELE, OUTPUT);
   pinMode(PIN_LED, OUTPUT);
-  pinMode(PIN_LED_AZUL, OUTPUT);
   pinMode(PIN_BUZZER, OUTPUT);
   dht.begin();
   WiFi.mode(WIFI_STA);

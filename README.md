@@ -94,8 +94,8 @@ Para darle nombre y unidad a un sensor nuevo, agrégalo en `SENSORES` dentro de
 | `/api/datos` | POST | Guarda una lectura. Encabezado `X-API-Key` obligatorio |
 | `/api/ultimos` | GET | Última lectura de cada dispositivo |
 | `/api/historial?horas=6&dispositivo=casa-1` | GET | Lecturas recientes (máximo 2000) |
-| `/api/control?dispositivo=casa-1` | GET | Órdenes del panel: `armado`, `ventilador`, `alarma_modo` y `led_azul` |
-| `/api/control` | POST | Cambia `armado` (0/1), `ventilador` (0 auto, 1 encendido, 2 apagado), `alarma_modo` (0 automática, 1 encendida, 2 apagada) o `led_azul` (0/1). Encabezado `X-Control-Pin` si se definió `CONTROL_PIN` |
+| `/api/control?dispositivo=casa-1` | GET | Órdenes del panel: `armado`, `ventilador` y `alarma_modo` |
+| `/api/control` | POST | Cambia `armado` (0/1), `ventilador` (0 auto, 1 encendido, 2 apagado) o `alarma_modo` (0 automática, 1 encendida, 2 apagada). Encabezado `X-Control-Pin` si se definió `CONTROL_PIN` |
 
 La respuesta de `/api/datos` trae las mismas órdenes, y la ESP32 además consulta `/api/control` cada 3 segundos, así los switches del panel responden casi al instante.
 
@@ -103,10 +103,10 @@ La respuesta de `/api/datos` trae las mismas órdenes, y la ESP32 además consul
 
 - El programa completo de la placa con relé, zumbador y LED está en
   `../prototipo/esp32/prototipo_domotico.ino`, y el circuito de Wokwi en `../prototipo/wokwi/`.
-- En el panel, la sección de control permite **armar o desarmar el sistema**, elegir el modo de la **alarma**
-  (automática, encendida o apagada), **encender o apagar el LED azul** con un switch y elegir el modo del ventilador.
+- En el panel, la sección de control tiene dos **switches**: uno para la **alarma** (sirena y LED rojo) y otro para el
+  **ventilador** (el LED azul que lo simula). Al moverlos pasan a modo manual; el botón **Automática** de cada uno
+  devuelve el control a los sensores. También se puede **armar o desarmar el sistema** de seguridad.
   El mismo panel funciona en el navegador y en la app instalada.
-- **LED azul:** conéctalo con una resistencia de 100-220 Ω entre **GPIO 14** y GND (patita larga hacia el GPIO).
   Si se definió `CONTROL_PIN`, el panel pide el PIN la primera vez.
 - **Avisos:** instala la app **ntfy** en el teléfono, toca **+** y suscríbete al mismo tema de la variable
   `NTFY_TOPIC`. Cuando la alarma se dispara llega un aviso, uno por cada disparo.
